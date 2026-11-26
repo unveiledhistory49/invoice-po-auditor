@@ -223,7 +223,7 @@
     },
     {
       "id": "562ff881-327d-4c56-af6c-4adb4de0c43c",
-      "name": "Confirm to Charles",
+      "name": "Confirm Decision",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
@@ -382,14 +382,14 @@
       "main": [
         [
           {
-            "node": "Confirm to Charles",
+            "node": "Confirm Decision",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Confirm to Charles": {
+    "Confirm Decision": {
       "main": [
         [
           {

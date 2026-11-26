@@ -1,6 +1,6 @@
 // Telegram approval poller for Demo 1 (Invoice & PO Auditor).
 // Polls Telegram getUpdates (long polling, outbound only - no public URL needed)
-// and forwards approval replies from Charles to the n8n responder webhook.
+// and forwards approval replies from the reviewer to the n8n responder webhook.
 // The bot token is decrypted in-memory from n8n's own credential store at
 // startup; it is never written to a file, never logged, and never printed.
 const { execSync } = require('child_process');
@@ -9,10 +9,10 @@ const path = require('path');
 const crypto = require('crypto');
 
 const HOME = process.env.HOME || '/home/hatch';
-const N8N_DIR = path.join(HOME, 'workspace/n8n/.n8n/.n8n');
+const N8N_DIR = process.env.N8N_DIR || process.env.N8N_USER_FOLDER || path.join(HOME, '.n8n');
 const CONFIG_PATH = path.join(N8N_DIR, 'config');
 const DB_PATH = path.join(N8N_DIR, 'database.sqlite');
-const POLLER_DIR = path.join(HOME, 'workspace/n8n/telegram-poller');
+const POLLER_DIR = process.env.POLLER_DIR || __dirname;
 const OFFSET_FILE = path.join(POLLER_DIR, 'offset.txt');
 const CRED_ID = process.env.TELEGRAM_CRED_ID || 'YOUR_TELEGRAM_CREDENTIAL_ID';
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID || 'YOUR_TELEGRAM_CHAT_ID';

@@ -5,8 +5,8 @@ Self-hosted, deterministic invoice-to-PO audit pipeline built on **n8n**, **Visi
 ## Contents
 
 - `workflows/`
-  - `Invoice_PO_Auditor_Main.json` (17 nodes) — Form Trigger → SHA-256 hash & size/type guardrail → PDF rasterization → Vision extraction → Deterministic JS audit → Auto-approve (`Approved_Ledger` + Gmail) or HITL (`Pending_Approvals` + Telegram; `Notify Submitter (HITL)` is a `NoOp` placeholder for your own email/Slack follow-up)
-  - `Invoice_PO_Auditor_Approval_Responder.json` (13 nodes) — Webhook (`POST /webhook/telegram-approval-reply`) → `APPROVE <INV>` / `REJECT <INV>` → `Approved_Ledger` + `Pending_Approvals` update
+  - `Invoice_PO_Auditor_Main.json` (17 nodes) — Form Trigger → SHA-256 hash & size/type guardrail → PDF rasterization → Vision extraction → Deterministic JS audit → Auto-approve (`Approved_Ledger` + `Notify Submitter (Clean)`) or HITL (`Pending_Approvals` + `Send Approval Request`)
+  - `Invoice_PO_Auditor_Approval_Responder.json` (13 nodes) — Webhook (`POST /webhook/telegram-approval-reply`) → `APPROVE <INV>` / `REJECT <INV>` → `Approved_Ledger` + `Pending_Approvals` update + `Confirm Decision` (`Notify Submitter (HITL)` is a `NoOp` placeholder for your own email/Slack follow-up)
   - `Invoice_PO_Auditor_Error_Handler.json` (4 nodes) — `Error Trigger` → `Audit_Errors` dead-letter insert + HTML-escaped Telegram ops alert
 - `pdf-service/` — Lightweight Python `ThreadingHTTPServer` + PyMuPDF (`:5681`) that rasterizes page 1 of uploaded PDFs at 150 DPI (~98 ms/page)
 - `telegram-poller/` — Outbound-only Telegram `getUpdates` long-poller (`poller.js`, `start.sh`) that forwards `APPROVE`/`REJECT` button taps or replies to n8n's `POST /webhook/telegram-approval-reply` without needing a public URL
@@ -41,7 +41,9 @@ Import the three JSON files from `workflows/` via **Workflows → Import from Fi
 
 **Re-bind Data Table IDs:** Each workflow JSON contains placeholder table IDs (`YOUR_PO_MASTER_TABLE_ID`, `YOUR_APPROVED_LEDGER_TABLE_ID`, `YOUR_PENDING_APPROVALS_TABLE_ID`, `YOUR_AUDIT_ERRORS_TABLE_ID`). After importing, open each Data Table node in n8n and select your newly created table from the dropdown (or search-and-replace the placeholders with your table IDs before importing).
 
-> **Note on `Notify Submitter (HITL)`:** In `Invoice_PO_Auditor_Main.json`, `Notify Submitter (HITL)` is intentionally a `NoOp` node so flagged invoices wait silently for human review until you wire in your own email/Slack notification.
+**Re-bind Error Workflow:** `Invoice_PO_Auditor_Main` and `Invoice_PO_Auditor_Approval_Responder` set `settings.errorWorkflow` to `'invoice-po-auditor-error-handler'`. Because importing via the n8n UI assigns a new workflow ID to `Invoice_PO_Auditor_Error_Handler`, open **Workflow Settings → Error Workflow** on both `Invoice_PO_Auditor_Main` and `Invoice_PO_Auditor_Approval_Responder` and select your imported `Invoice_PO_Auditor_Error_Handler` (and ensure `Log to Dead-Letter Table` and `Alert Ops Channel` inside the error handler are bound to your `Audit_Errors` table and Telegram credential).
+
+> **Note on `Notify Submitter (HITL)`:** In `Invoice_PO_Auditor_Approval_Responder.json`, `Notify Submitter (HITL)` is intentionally a `NoOp` node so you can wire in your own email/Slack notification to the submitter after an approval or rejection decision.
 
 ### 3. Set Up Credentials & Telegram Chat ID
 In n8n **Credentials → Add Credential**:
@@ -68,9 +70,11 @@ Expected: `{"status": "ok", "renderer": "pymupdf", ...}`.
 ```bash
 export TELEGRAM_CRED_ID="your-n8n-telegram-credential-id"
 export TELEGRAM_CHAT_ID="your-telegram-chat-id"
+export N8N_DIR="$HOME/.n8n"                # optional; defaults to $N8N_USER_FOLDER or $HOME/.n8n
+export POLLER_DIR="$(pwd)/telegram-poller" # optional; defaults to the script directory
 bash telegram-poller/start.sh
 ```
-It decrypts your bot token in-memory from n8n's local credential store, long-polls Telegram `getUpdates`, and forwards `APPROVE`/`REJECT` callback taps or text replies to the responder webhook.
+It decrypts your bot token in-memory from n8n's local credential store (`$N8N_DIR/config` and `$N8N_DIR/database.sqlite`), long-polls Telegram `getUpdates`, and forwards `APPROVE`/`REJECT` callback taps or text replies to the responder webhook.
 
 ### 6. Activate & Run
 Publish/activate all three workflows in n8n, then open the live form at:

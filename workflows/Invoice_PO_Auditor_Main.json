@@ -91,8 +91,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        640,
-        200
+        680,
+        160
       ],
       "parameters": {
         "method": "POST",
@@ -141,7 +141,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        480,
+        880,
         300
       ],
       "credentials": {
@@ -160,7 +160,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        720,
+        1120,
         300
       ]
     },
@@ -170,7 +170,7 @@
       "type": "n8n-nodes-base.dataTable",
       "typeVersion": 1.1,
       "position": [
-        960,
+        1360,
         300
       ],
       "executeOnce": true,
@@ -192,7 +192,7 @@
       "type": "n8n-nodes-base.dataTable",
       "typeVersion": 1.1,
       "position": [
-        1200,
+        1600,
         300
       ],
       "executeOnce": true,
@@ -217,7 +217,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1440,
+        1840,
         300
       ]
     },
@@ -282,7 +282,7 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
       "position": [
-        1680,
+        2080,
         300
       ]
     },
@@ -292,7 +292,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1940,
+        2340,
         140
       ],
       "parameters": {
@@ -305,7 +305,7 @@
       "type": "n8n-nodes-base.dataTable",
       "typeVersion": 1.1,
       "position": [
-        2180,
+        2580,
         140
       ],
       "parameters": {
@@ -328,7 +328,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        2420,
+        2820,
         140
       ],
       "parameters": {
@@ -362,7 +362,7 @@
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
       "position": [
-        2680,
+        3080,
         80
       ],
       "parameters": {
@@ -387,7 +387,7 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        1940,
+        2340,
         440
       ],
       "parameters": {
@@ -413,7 +413,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2180,
+        2580,
         440
       ],
       "parameters": {
@@ -426,7 +426,7 @@
       "type": "n8n-nodes-base.dataTable",
       "typeVersion": 1.1,
       "position": [
-        2420,
+        2820,
         440
       ],
       "parameters": {

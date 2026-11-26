@@ -3,7 +3,7 @@ set -euo pipefail
 # Start the Demo 1 Telegram approval poller (long-polls getUpdates, forwards
 # approval replies to the n8n responder webhook). The bot token is decrypted
 # in-memory from n8n's credential store; it is never written to a file.
-POLLER_DIR="$HOME/workspace/n8n/telegram-poller"
+POLLER_DIR="${POLLER_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 LOG_FILE="$POLLER_DIR/poller.log"
 PID_FILE="$POLLER_DIR/poller.pid"
 if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
