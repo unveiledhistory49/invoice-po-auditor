@@ -9,7 +9,7 @@ Self-hosted, deterministic invoice-to-PO audit pipeline built on **n8n**, **Visi
   - `Invoice_PO_Auditor_Approval_Responder.json` (13 nodes) — Webhook (`POST /webhook/telegram-approval-reply`) → `APPROVE <INV>` / `REJECT <INV>` → `Approved_Ledger` + `Pending_Approvals` update + `Confirm Decision` (`Notify Submitter (HITL)` is a `NoOp` placeholder for your own email/Slack follow-up)
   - `Invoice_PO_Auditor_Error_Handler.json` (4 nodes) — `Error Trigger` → `Audit_Errors` dead-letter insert + HTML-escaped Telegram ops alert
 - `pdf-service/` — Lightweight Python `ThreadingHTTPServer` + PyMuPDF (`:5681`) that rasterizes page 1 of uploaded PDFs at 150 DPI (~98 ms/page)
-- `telegram-poller/` — Outbound-only Telegram `getUpdates` long-poller (`poller.js`, `start.sh`) that forwards `APPROVE`/`REJECT` button taps or replies to n8n's `POST /webhook/telegram-approval-reply` without needing a public URL
+- `telegram-poller/` — Outbound-only Telegram `getUpdates` long-poller (`poller.js`, `start.sh`) that forwards `APPROVE <INV>` / `REJECT <INV>` text replies (one-tap copy via `<code>` blocks) to n8n's `POST /webhook/telegram-approval-reply` without needing a public URL
 - `seed-data/` — Sample invoices (`INV-2026-101.pdf`, `INV-2026-102.pdf`, `INV-2026-101-duplicate.pdf`, and Naira sample `INV-2026-201.pdf`) plus `PO_Master.csv` / `PO_Master.json`
 
 > **Note:** No API keys, OAuth tokens, personal Telegram chat IDs, or instance-specific Data Table / credential IDs are included in this bundle. All workflow JSONs and `telegram-poller/poller.js` use `YOUR_*` placeholders.
@@ -74,7 +74,7 @@ export N8N_DIR="$HOME/.n8n"                # optional; defaults to $N8N_USER_FOL
 export POLLER_DIR="$(pwd)/telegram-poller" # optional; defaults to the script directory
 bash telegram-poller/start.sh
 ```
-It decrypts your bot token in-memory from n8n's local credential store (`$N8N_DIR/config` and `$N8N_DIR/database.sqlite`), long-polls Telegram `getUpdates`, and forwards `APPROVE`/`REJECT` callback taps or text replies to the responder webhook.
+It decrypts your bot token in-memory from n8n's local credential store (`$N8N_DIR/config` and `$N8N_DIR/database.sqlite`), long-polls Telegram `getUpdates`, and forwards `APPROVE <INV>` / `REJECT <INV>` text replies to the responder webhook.
 
 ### 6. Activate & Run
 Publish/activate all three workflows in n8n, then open the live form at:

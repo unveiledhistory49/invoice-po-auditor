@@ -8,7 +8,9 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const HOME = process.env.HOME || '/home/hatch';
+const os = require('os');
+
+const HOME = process.env.HOME || os.homedir();
 const N8N_DIR = process.env.N8N_DIR || process.env.N8N_USER_FOLDER || path.join(HOME, '.n8n');
 const CONFIG_PATH = path.join(N8N_DIR, 'config');
 const DB_PATH = path.join(N8N_DIR, 'database.sqlite');
