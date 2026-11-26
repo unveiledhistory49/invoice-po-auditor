@@ -1,0 +1,631 @@
+{
+  "id": "invoice-po-auditor-main",
+  "name": "Invoice_PO_Auditor_Main",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "invoice-po-auditor-error-handler"
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Invoice & PO Auditor",
+        "formDescription": "Upload a vendor invoice (PDF, PNG, or JPG) for automated extraction and deterministic PO verification.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Invoice File",
+              "fieldType": "file",
+              "multipleFiles": false,
+              "acceptFileTypes": ".pdf,.png,.jpg,.jpeg",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Submitter Email",
+              "fieldType": "email",
+              "requiredField": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1a0f8c10-4b2e-4f1a-9a01-000000000001",
+      "name": "On Invoice Upload",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "invoice-po-auditor-form"
+    },
+    {
+      "parameters": {
+        "jsCode": "const crypto = require('crypto');\nconst ALLOWED_MIMES = new Set(['application/pdf', 'image/jpeg', 'image/png']);\nconst MAX_BYTES = 10 * 1024 * 1024;\n\nconst item = $input.first();\nconst binaryKeys = Object.keys(item.binary || {});\nif (binaryKeys.length === 0) {\n  throw new Error('No binary file attached to form submission');\n}\n\nconst binaryKey = binaryKeys[0];\nconst meta = item.binary[binaryKey];\nif (!ALLOWED_MIMES.has(meta.mimeType)) {\n  throw new Error(`Unsupported MIME type: ${meta.mimeType}`);\n}\n\nconst buffer = await this.helpers.getBinaryDataBuffer(0, binaryKey);\nif (buffer.length > MAX_BYTES) {\n  throw new Error(`File exceeds 10 MB limit (${buffer.length} bytes)`);\n}\n\nconst fileHash = crypto.createHash('sha256').update(buffer).digest('hex');\n\nreturn [\n  {\n    json: {\n      file_hash: fileHash,\n      file_name: meta.fileName || 'invoice',\n      mime_type: meta.mimeType,\n      file_size_bytes: buffer.length,\n      submitter_email: item.json['Submitter Email'] || null,\n      base64_data: buffer.toString('base64')\n    }\n  }\n];"
+      },
+      "id": "1a0f8c10-4b2e-4f1a-9a01-000000000002",
+      "name": "Validate File & Prep Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "id": "1a0f8c10-4b2e-4f1a-9a01-000000000023",
+      "name": "Is PDF?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-is-pdf",
+              "leftValue": "={{ $json.mime_type }}",
+              "rightValue": "application/pdf",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "1a0f8c10-4b2e-4f1a-9a01-000000000024",
+      "name": "Convert PDF to PNG",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        640,
+        200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:5681/render",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ base64_data: $json.base64_data, dpi: 150, first_page_only: true }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://integrate.api.nvidia.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'nvidia/nemotron-3.5-super-vl-120b-a12b', temperature: 0, max_tokens: 4096, response_format: { type: 'json_object' }, messages: [ { role: 'system', content: 'You are a high-precision financial document transcription engine. Extract literal values from invoice PDFs and images into the provided JSON schema. Transcribe values exactly as printed; never correct vendor math errors or recalculate totals. Output 0 for absent tax, shipping, or discount. Output null for absent po_number or due_date. Normalize dates to YYYY-MM-DD and currency to 3-letter ISO 4217 codes. Set extraction_confidence between 0.0 and 1.0 based strictly on visual legibility. Return ONLY a JSON object with these exact keys, in this order: vendor_name (string), invoice_number (string), po_number (string or null), invoice_date (string YYYY-MM-DD), due_date (string YYYY-MM-DD or null), currency (string, 3-letter ISO 4217), line_items (array of {description, quantity, unit_price, line_total}), subtotal (number), tax_amount (number), shipping_amount (number), discount_amount (number), total_amount (number), extraction_confidence (number), extraction_notes (string).' }, { role: 'user', content: [ { type: 'text', text: 'Extract all invoice header fields, line items, and totals from the attached document strictly following the configured JSON schema. Preserve printed amounts verbatim.' }, { type: 'image_url', image_url: { url: 'data:' + $json.mime_type + ';base64,' + $json.base64_data } } ] } ] }) }}",
+        "options": {
+          "timeout": 60000
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi"
+      },
+      "id": "1a0f8c10-4b2e-4f1a-9a01-000000000003",
+      "name": "Extract Invoice via NVIDIA",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        300
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "04LJbqTbPNOXygik",
+          "name": "NVIDIA - Nemotron 3.5 Super VL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst rawText = response?.choices?.[0]?.message?.content;\nif (!rawText || typeof rawText !== 'string') {\n  throw new Error('NVIDIA response missing structured JSON text payload');\n}\n\nlet parsed;\ntry {\n  parsed = JSON.parse(rawText);\n} catch (error) {\n  throw new Error(`Malformed JSON from NVIDIA: ${error.message}`);\n}\n\nreturn [\n  {\n    json: {\n      vendor_name: String(parsed.vendor_name ?? '').trim(),\n      invoice_number: String(parsed.invoice_number ?? '').trim(),\n      po_number: parsed.po_number ? String(parsed.po_number).trim() : null,\n      invoice_date: String(parsed.invoice_date ?? '').trim(),\n      due_date: parsed.due_date ? String(parsed.due_date).trim() : null,\n      currency: String(parsed.currency ?? '').trim().toUpperCase(),\n      line_items: Array.isArray(parsed.line_items) ? parsed.line_items : [],\n      subtotal: Number(parsed.subtotal),\n      tax_amount: Number(parsed.tax_amount ?? 0),\n      shipping_amount: Number(parsed.shipping_amount ?? 0),\n      discount_amount: Number(parsed.discount_amount ?? 0),\n      total_amount: Number(parsed.total_amount),\n      extraction_confidence: Number(parsed.extraction_confidence),\n      extraction_notes: String(parsed.extraction_notes ?? '').trim()\n    }\n  }\n];"
+      },
+      "id": "1a0f8c10-4b2e-4f1a-9a01-000000000004",
+      "name": "Normalize NVIDIA Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        300
+      ]
+    },
+    {
+      "id": "1a0f8c10-4b2e-4f1a-9a01-000000000010",
+      "name": "Fetch Ledger History",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        960,
+        300
+      ],
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "z6MmDYhD4UWWhh9G"
+        },
+        "returnAll": true
+      }
+    },
+    {
+      "id": "1a0f8c10-4b2e-4f1a-9a01-000000000011",
+      "name": "Fetch Matching PO",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1200,
+        300
+      ],
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "IlhWwgcEgdJfRTvb"
+        },
+        "returnAll": true
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const CONFIDENCE_THRESHOLD = 0.85;\nconst MATH_TOLERANCE_CENTS = 2;\nconst PO_VARIANCE_TOLERANCE_PERCENT = 0.01;\n\nconst toCents = (value) => {\n  if (typeof value !== 'number' || !Number.isFinite(value)) {\n    return null;\n  }\n  return Math.round(value * 100);\n};\n\nconst formatMoney = (cents) => (cents / 100).toFixed(2);\nconst normalizeKey = (value) => String(value ?? '').trim().toUpperCase();\n\nconst invoice = $('Normalize NVIDIA Payload').first().json;\nconst fileMeta = $('Validate File & Prep Payload').first().json;\n\nconst ledgerRows = $('Fetch Ledger History')\n  .all()\n  .map((item) => item.json)\n  .filter((row) => row && (row.invoice_number || row.file_hash));\nconst poRecords = $('Fetch Matching PO')\n  .all()\n  .map((item) => item.json)\n  .filter((po) => po && po.po_number);\n\nconst flags = [];\nconst pushFlag = (code, severity, detail) => {\n  flags.push({ code, severity, detail });\n};\n\nfor (const field of ['vendor_name', 'invoice_number', 'invoice_date', 'currency']) {\n  if (!invoice[field]) {\n    pushFlag('REQUIRED_FIELD_MISSING', 'CRITICAL', `Missing required field: ${field}`);\n  }\n}\n\nif (!Array.isArray(invoice.line_items) || invoice.line_items.length === 0) {\n  pushFlag('NO_LINE_ITEMS', 'CRITICAL', 'Invoice contains zero extractable line items');\n}\n\nif (!Number.isFinite(invoice.extraction_confidence) || invoice.extraction_confidence < CONFIDENCE_THRESHOLD) {\n  pushFlag('LOW_EXTRACTION_CONFIDENCE', 'HIGH', `Extraction confidence ${invoice.extraction_confidence} is below threshold ${CONFIDENCE_THRESHOLD}`);\n}\n\nconst invoiceKey = `${normalizeKey(invoice.vendor_name)}::${normalizeKey(invoice.invoice_number)}`;\nconst duplicateRecord = ledgerRows.find((row) => {\n  const rowKey = `${normalizeKey(row.vendor_name)}::${normalizeKey(row.invoice_number)}`;\n  return rowKey === invoiceKey || (fileMeta.file_hash && row.file_hash === fileMeta.file_hash);\n});\n\nif (duplicateRecord) {\n  pushFlag('DUPLICATE_INVOICE', 'CRITICAL', `Matches existing ledger entry ${duplicateRecord.invoice_number} (${duplicateRecord.status})`);\n}\n\nlet computedSubtotalCents = 0;\ninvoice.line_items.forEach((item, index) => {\n  const unitCents = toCents(item.unit_price);\n  const lineCents = toCents(item.line_total);\n  const quantity = Number(item.quantity);\n\n  if (unitCents === null || lineCents === null || !Number.isFinite(quantity)) {\n    pushFlag('INVALID_LINE_ITEM_NUMBER', 'HIGH', `Line ${index + 1} contains non-numeric values`);\n    return;\n  }\n\n  const expectedLineCents = Math.round(quantity * unitCents);\n  if (Math.abs(expectedLineCents - lineCents) > MATH_TOLERANCE_CENTS) {\n    pushFlag('LINE_ITEM_MATH_MISMATCH', 'HIGH', `Line ${index + 1} (${item.description}): ${quantity} x ${formatMoney(unitCents)} = ${formatMoney(expectedLineCents)}, printed ${formatMoney(lineCents)}`);\n  }\n  computedSubtotalCents += lineCents;\n});\n\nconst statedSubtotalCents = toCents(invoice.subtotal);\nconst taxCents = toCents(invoice.tax_amount) ?? 0;\nconst shippingCents = toCents(invoice.shipping_amount) ?? 0;\nconst discountCents = toCents(invoice.discount_amount) ?? 0;\nconst statedTotalCents = toCents(invoice.total_amount);\nconst computedTotalCents = computedSubtotalCents + taxCents + shippingCents - Math.abs(discountCents);\n\nif (statedSubtotalCents === null || statedTotalCents === null) {\n  pushFlag('INVALID_TOTALS', 'CRITICAL', 'Subtotal or total_amount is missing or non-numeric');\n} else {\n  if (Math.abs(computedSubtotalCents - statedSubtotalCents) > MATH_TOLERANCE_CENTS) {\n    pushFlag('SUBTOTAL_MISMATCH', 'HIGH', `Line items sum to ${formatMoney(computedSubtotalCents)} but stated subtotal is ${formatMoney(statedSubtotalCents)}`);\n  }\n  if (Math.abs(computedTotalCents - statedTotalCents) > MATH_TOLERANCE_CENTS) {\n    pushFlag('GRAND_TOTAL_MISMATCH', 'HIGH', `Computed total is ${formatMoney(computedTotalCents)} but stated total is ${formatMoney(statedTotalCents)}`);\n  }\n}\n\nconst matchedPo = poRecords.find((po) => normalizeKey(po.po_number) === normalizeKey(invoice.po_number));\nlet poAuthorizedCents = null;\nlet poVarianceCents = null;\n\nif (!invoice.po_number) {\n  pushFlag('PO_NUMBER_MISSING', 'MEDIUM', 'Invoice does not reference a Purchase Order');\n} else if (!matchedPo) {\n  pushFlag('PO_NOT_FOUND', 'HIGH', `Referenced PO ${invoice.po_number} does not exist in PO master`);\n} else {\n  if (normalizeKey(matchedPo.currency) !== normalizeKey(invoice.currency)) {\n    pushFlag('CURRENCY_MISMATCH', 'HIGH', `Invoice currency ${invoice.currency} does not match PO currency ${matchedPo.currency}`);\n  }\n  poAuthorizedCents = toCents(Number(matchedPo.remaining_amount ?? matchedPo.authorized_amount));\n  if (poAuthorizedCents !== null && statedTotalCents !== null) {\n    poVarianceCents = statedTotalCents - poAuthorizedCents;\n    const allowedOverageCents = Math.max(MATH_TOLERANCE_CENTS, Math.round(poAuthorizedCents * PO_VARIANCE_TOLERANCE_PERCENT));\n    if (poVarianceCents > allowedOverageCents) {\n      pushFlag('PO_AMOUNT_EXCEEDED', 'HIGH', `Invoice total ${formatMoney(statedTotalCents)} exceeds authorized PO balance ${formatMoney(poAuthorizedCents)} by ${formatMoney(poVarianceCents)}`);\n    }\n  }\n}\n\nreturn [\n  {\n    json: {\n      decision: flags.length === 0 ? 'AUTO_APPROVED' : 'NEEDS_REVIEW',\n      flag_count: flags.length,\n      file_hash: fileMeta.file_hash,\n      submitter_email: fileMeta.submitter_email,\n      vendor_name: invoice.vendor_name,\n      invoice_number: invoice.invoice_number,\n      po_number: invoice.po_number,\n      invoice_date: invoice.invoice_date,\n      currency: invoice.currency,\n      extraction_confidence: invoice.extraction_confidence,\n      reconciliation: {\n        stated_subtotal_cents: statedSubtotalCents,\n        computed_subtotal_cents: computedSubtotalCents,\n        stated_total_cents: statedTotalCents,\n        computed_total_cents: computedTotalCents,\n        po_authorized_cents: poAuthorizedCents,\n        po_variance_cents: poVarianceCents\n      },\n      flags,\n      raw_invoice: invoice\n    }\n  }\n];"
+      },
+      "id": "1a0f8c10-4b2e-4f1a-9a01-000000000005",
+      "name": "Deterministic Audit Engine",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "cond-auto-approved",
+                    "leftValue": "={{ $json.decision }}",
+                    "rightValue": "AUTO_APPROVED",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "AUTO_APPROVED"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "cond-needs-review",
+                    "leftValue": "={{ $json.decision }}",
+                    "rightValue": "NEEDS_REVIEW",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "NEEDS_REVIEW"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1a0f8c10-4b2e-4f1a-9a01-000000000006",
+      "name": "Route by Audit Decision",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1680,
+        300
+      ]
+    },
+    {
+      "id": "1a0f8c10-4b2e-4f1a-9a01-000000000012",
+      "name": "Prepare Auto-Approved Row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1940,
+        140
+      ],
+      "parameters": {
+        "jsCode": "const audit = $('Deterministic Audit Engine').first().json;\nconst rec = audit.reconciliation || {};\nconst reviewerId = 'SYSTEM_AUTO';\nreturn [\n  {\n    json: {\n      invoice_number: String(audit.invoice_number ?? ''),\n      vendor_name: String(audit.vendor_name ?? ''),\n      po_number: String(audit.po_number ?? ''),\n      invoice_date: String(audit.invoice_date ?? ''),\n      currency: String(audit.currency ?? ''),\n      stated_total: (rec.stated_total_cents ?? 0) / 100,\n      computed_total: (rec.computed_total_cents ?? 0) / 100,\n      po_variance: (rec.po_variance_cents ?? 0) / 100,\n      status: 'APPROVED_AUTO',\n      reviewer_id: reviewerId,\n      file_hash: String(audit.file_hash ?? ''),\n      submitter_email: String(audit.submitter_email ?? ''),\n      flags_json: JSON.stringify(audit.flags || []),\n      processed_at: new Date().toISOString()\n    }\n  }\n];"
+      }
+    },
+    {
+      "id": "1a0f8c10-4b2e-4f1a-9a01-000000000013",
+      "name": "Append to Approved Ledger",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        2180,
+        140
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "insert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "z6MmDYhD4UWWhh9G"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null
+        }
+      }
+    },
+    {
+      "id": "1a0f8c10-4b2e-4f1a-9a01-000000000014",
+      "name": "Has Submitter Email?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2420,
+        140
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-submitter-email",
+              "leftValue": "={{ $('Deterministic Audit Engine').first().json.submitter_email }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "1a0f8c10-4b2e-4f1a-9a01-000000000015",
+      "name": "Notify Submitter (Clean)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2680,
+        80
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $('Deterministic Audit Engine').first().json.submitter_email }}",
+        "subject": "={{ 'Invoice Auto-Approved: ' + $('Deterministic Audit Engine').first().json.invoice_number }}",
+        "emailType": "text",
+        "message": "={{ 'Invoice ' + $('Deterministic Audit Engine').first().json.invoice_number + ' from ' + $('Deterministic Audit Engine').first().json.vendor_name + ' (PO ' + $('Deterministic Audit Engine').first().json.po_number + ') has been verified and recorded with status APPROVED_AUTO.' }}",
+        "options": {}
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gmail-demo-oauth2",
+          "name": "Gmail - Demo"
+        }
+      }
+    },
+    {
+      "id": "1a0f8c10-4b2e-4f1a-9a01-000000000016",
+      "name": "Send Approval Request",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1940,
+        440
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "6767879951",
+        "text": "={{ '<b>Invoice Review Required: ' + $json.invoice_number + ' (' + $json.vendor_name + ')</b>\\n' + 'Vendor: ' + $json.vendor_name + '\\n' + 'Invoice: ' + $json.invoice_number + '\\n' + 'PO: ' + ($json.po_number || 'MISSING') + '\\n' + 'Stated Total: ' + $json.currency + ' ' + (($json.reconciliation.stated_total_cents ?? 0) / 100).toFixed(2) + '\\n' + 'Computed Total: ' + $json.currency + ' ' + (($json.reconciliation.computed_total_cents ?? 0) / 100).toFixed(2) + '\\n' + 'PO Authorized: ' + ($json.reconciliation.po_authorized_cents !== null ? ($json.currency + ' ' + ($json.reconciliation.po_authorized_cents / 100).toFixed(2)) : 'N/A') + '\\n' + 'PO Variance: ' + ($json.reconciliation.po_variance_cents !== null ? ($json.currency + ' ' + ($json.reconciliation.po_variance_cents / 100).toFixed(2)) : 'N/A') + '\\n\\n' + '<b>Flags (' + $json.flag_count + '):</b>\\n' + $json.flags.map((f) => '- [' + f.severity + '] ' + f.code + ': ' + f.detail).join('\\n') + '\\n\\n<b>Reply to decide (tap to copy):</b>\\n<code>APPROVE ' + $json.invoice_number + '</code>\\n<code>REJECT ' + $json.invoice_number + '</code>' }}",
+        "additionalFields": {
+          "parse_mode": "HTML",
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "sWRVhdNdfUbHszVN",
+          "name": "Telegram - Demo Approvals"
+        }
+      }
+    },
+    {
+      "id": "2ec9c655-fffd-4932-a666-6928548d8937",
+      "name": "Prepare Pending Approval Row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2180,
+        440
+      ],
+      "parameters": {
+        "jsCode": "const audit = $('Deterministic Audit Engine').first().json;\nconst rec = audit.reconciliation || {};\nreturn [\n  {\n    json: {\n      invoice_number: String(audit.invoice_number ?? ''),\n      vendor_name: String(audit.vendor_name ?? ''),\n      po_number: String(audit.po_number ?? ''),\n      invoice_date: String(audit.invoice_date ?? ''),\n      currency: String(audit.currency ?? ''),\n      stated_total: (rec.stated_total_cents ?? 0) / 100,\n      computed_total: (rec.computed_total_cents ?? 0) / 100,\n      po_variance: (rec.po_variance_cents ?? 0) / 100,\n      status: 'PENDING',\n      reviewer_id: '',\n      file_hash: String(audit.file_hash ?? ''),\n      submitter_email: String(audit.submitter_email ?? ''),\n      flags_json: JSON.stringify(audit.flags || []),\n      requested_at: new Date().toISOString(),\n      decided_at: ''\n    }\n  }\n];"
+      }
+    },
+    {
+      "id": "f9167fb6-ede4-42da-91fb-a2fb3ea1a622",
+      "name": "Record Pending Approval",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        2420,
+        440
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "insert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "rNM7EIk4hfWVzOWI"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null
+        }
+      }
+    }
+  ],
+  "connections": {
+    "On Invoice Upload": {
+      "main": [
+        [
+          {
+            "node": "Validate File & Prep Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate File & Prep Payload": {
+      "main": [
+        [
+          {
+            "node": "Is PDF?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is PDF?": {
+      "main": [
+        [
+          {
+            "node": "Convert PDF to PNG",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extract Invoice via NVIDIA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert PDF to PNG": {
+      "main": [
+        [
+          {
+            "node": "Extract Invoice via NVIDIA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Invoice via NVIDIA": {
+      "main": [
+        [
+          {
+            "node": "Normalize NVIDIA Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize NVIDIA Payload": {
+      "main": [
+        [
+          {
+            "node": "Fetch Ledger History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Ledger History": {
+      "main": [
+        [
+          {
+            "node": "Fetch Matching PO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Matching PO": {
+      "main": [
+        [
+          {
+            "node": "Deterministic Audit Engine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Deterministic Audit Engine": {
+      "main": [
+        [
+          {
+            "node": "Route by Audit Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Audit Decision": {
+      "main": [
+        [
+          {
+            "node": "Prepare Auto-Approved Row",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Approval Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Auto-Approved Row": {
+      "main": [
+        [
+          {
+            "node": "Append to Approved Ledger",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append to Approved Ledger": {
+      "main": [
+        [
+          {
+            "node": "Has Submitter Email?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Submitter Email?": {
+      "main": [
+        [
+          {
+            "node": "Notify Submitter (Clean)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Send Approval Request": {
+      "main": [
+        [
+          {
+            "node": "Prepare Pending Approval Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Pending Approval Row": {
+      "main": [
+        [
+          {
+            "node": "Record Pending Approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "tags": []
+}

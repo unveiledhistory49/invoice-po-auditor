@@ -1,0 +1,406 @@
+{
+  "id": "invoice-po-auditor-approval-responder",
+  "name": "Invoice_PO_Auditor_Approval_Responder",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "invoice-po-auditor-error-handler"
+  },
+  "nodes": [
+    {
+      "id": "74a79d86-607b-4376-b106-dc1fcea48cc7",
+      "name": "On Approval Reply",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "telegram-approval-reply",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "telegram-approval-reply",
+        "responseMode": "onReceived",
+        "options": {}
+      }
+    },
+    {
+      "id": "42cfbedd-1a86-4c05-b4ac-49d053b7d513",
+      "name": "Parse Reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst msg = body.message || {};\nconst text = String(msg.text || '');\nconst from = msg.from || {};\nconst chat = msg.chat || {};\nconst isApprove = /\\bapprove\\b/i.test(text);\nconst isReject = /\\b(reject|disapprove|deny)\\b/i.test(text);\nif (!isApprove && !isReject) return [];\nconst invMatch = text.match(/INV-\\d{4}-\\d+/i);\nif (!invMatch) return [];\nconst reviewer = String(from.username || from.id || from.first_name || 'telegram_reviewer');\nreturn [{ json: {\n  decision: isApprove ? 'APPROVE' : 'REJECT',\n  invoice_number: invMatch[0].toUpperCase(),\n  reviewer_id: reviewer,\n  chat_id: String(chat.id || ''),\n  message_text: text\n}}];"
+      }
+    },
+    {
+      "id": "9c75e8d0-0af5-42f7-b624-1823db1d1165",
+      "name": "Fetch Pending Approvals",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        480,
+        300
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "rNM7EIk4hfWVzOWI"
+        },
+        "returnAll": true
+      }
+    },
+    {
+      "id": "2edf402f-a3d9-4306-9394-8d4d717d71a9",
+      "name": "Find Pending Approval",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const parsed = $('Parse Reply').first().json;\nconst rows = $input.all().map((i) => i.json);\nconst target = parsed.invoice_number.toUpperCase();\nconst pending = rows\n  .filter((r) => String(r.invoice_number || '').toUpperCase() === target && String(r.status || '').toUpperCase() === 'PENDING')\n  .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));\nif (pending.length === 0) return [];\nconst row = pending[0];\nreturn [{ json: { ...row, decision: parsed.decision, reviewer_id: parsed.reviewer_id, chat_id: parsed.chat_id } }];"
+      }
+    },
+    {
+      "id": "d31ab42f-d78b-4c4e-b874-c5e2c7fec10c",
+      "name": "Route by Decision",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        960,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-responder-approved",
+              "leftValue": "={{ $json.decision }}",
+              "rightValue": "APPROVE",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "9431db43-27a3-44b4-b837-4c446b149238",
+      "name": "Prepare Approved Manual Row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        140
+      ],
+      "parameters": {
+        "jsCode": "const p = $('Find Pending Approval').first().json;\nreturn [{ json: {\n  invoice_number: String(p.invoice_number ?? ''),\n  vendor_name: String(p.vendor_name ?? ''),\n  po_number: String(p.po_number ?? ''),\n  invoice_date: String(p.invoice_date ?? ''),\n  currency: String(p.currency ?? ''),\n  stated_total: Number(p.stated_total ?? 0),\n  computed_total: Number(p.computed_total ?? 0),\n  po_variance: Number(p.po_variance ?? 0),\n  status: 'APPROVED_MANUAL',\n  reviewer_id: String(p.reviewer_id ?? 'telegram_reviewer'),\n  file_hash: String(p.file_hash ?? ''),\n  submitter_email: String(p.submitter_email ?? ''),\n  flags_json: String(p.flags_json ?? '[]'),\n  processed_at: new Date().toISOString()\n}}];"
+      }
+    },
+    {
+      "id": "b10aec0f-ea70-476e-8697-216fd8d2f449",
+      "name": "Write Approved Manual Ledger",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1440,
+        140
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "insert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "z6MmDYhD4UWWhh9G"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null
+        }
+      }
+    },
+    {
+      "id": "5ee2cf58-b993-4a5c-93f4-d2e87bf26210",
+      "name": "Prepare Rejected Manual Row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        460
+      ],
+      "parameters": {
+        "jsCode": "const p = $('Find Pending Approval').first().json;\nreturn [{ json: {\n  invoice_number: String(p.invoice_number ?? ''),\n  vendor_name: String(p.vendor_name ?? ''),\n  po_number: String(p.po_number ?? ''),\n  invoice_date: String(p.invoice_date ?? ''),\n  currency: String(p.currency ?? ''),\n  stated_total: Number(p.stated_total ?? 0),\n  computed_total: Number(p.computed_total ?? 0),\n  po_variance: Number(p.po_variance ?? 0),\n  status: 'REJECTED_MANUAL',\n  reviewer_id: String(p.reviewer_id ?? 'telegram_reviewer'),\n  file_hash: String(p.file_hash ?? ''),\n  submitter_email: String(p.submitter_email ?? ''),\n  flags_json: String(p.flags_json ?? '[]'),\n  processed_at: new Date().toISOString()\n}}];"
+      }
+    },
+    {
+      "id": "ef20da03-90f9-42d5-ba0f-2e2d91f822cf",
+      "name": "Write Rejected Manual Ledger",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1440,
+        460
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "insert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "z6MmDYhD4UWWhh9G"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null
+        }
+      }
+    },
+    {
+      "id": "ff5f47d5-f66b-48ca-a490-68eb4edf6690",
+      "name": "Prepare Pending Update",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const p = $('Find Pending Approval').first().json;\nconst row = $input.first().json;\nreturn [{ json: {\n  id: p.id,\n  invoice_number: String(row.invoice_number ?? ''),\n  status: String(row.status ?? ''),\n  decided_at: String(row.processed_at ?? new Date().toISOString()),\n  reviewer_id: String(row.reviewer_id ?? '')\n}}];"
+      }
+    },
+    {
+      "id": "046f9471-437a-44e4-af3e-3af6167045aa",
+      "name": "Mark Pending Decided",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1920,
+        300
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "rNM7EIk4hfWVzOWI"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.id }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null
+        }
+      }
+    },
+    {
+      "id": "562ff881-327d-4c56-af6c-4adb4de0c43c",
+      "name": "Confirm to Charles",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2160,
+        300
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "6767879951",
+        "text": "={{ 'Invoice ' + $json.invoice_number + ' has been ' + ($json.status === 'APPROVED_MANUAL' ? 'approved' : 'rejected') + ' and recorded as ' + $json.status + '.' }}",
+        "additionalFields": {
+          "parse_mode": "HTML",
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "sWRVhdNdfUbHszVN",
+          "name": "Telegram - Demo Approvals"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "3b5c1048-86ec-4e97-a009-74fb2618dd21",
+      "name": "Notify Submitter (HITL)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2400,
+        300
+      ],
+      "parameters": {}
+    }
+  ],
+  "connections": {
+    "On Approval Reply": {
+      "main": [
+        [
+          {
+            "node": "Parse Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Reply": {
+      "main": [
+        [
+          {
+            "node": "Fetch Pending Approvals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Pending Approvals": {
+      "main": [
+        [
+          {
+            "node": "Find Pending Approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Pending Approval": {
+      "main": [
+        [
+          {
+            "node": "Route by Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Decision": {
+      "main": [
+        [
+          {
+            "node": "Prepare Approved Manual Row",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Rejected Manual Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Approved Manual Row": {
+      "main": [
+        [
+          {
+            "node": "Write Approved Manual Ledger",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Rejected Manual Row": {
+      "main": [
+        [
+          {
+            "node": "Write Rejected Manual Ledger",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Approved Manual Ledger": {
+      "main": [
+        [
+          {
+            "node": "Prepare Pending Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Rejected Manual Ledger": {
+      "main": [
+        [
+          {
+            "node": "Prepare Pending Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Pending Update": {
+      "main": [
+        [
+          {
+            "node": "Mark Pending Decided",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Pending Decided": {
+      "main": [
+        [
+          {
+            "node": "Confirm to Charles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confirm to Charles": {
+      "main": [
+        [
+          {
+            "node": "Notify Submitter (HITL)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "tags": []
+}

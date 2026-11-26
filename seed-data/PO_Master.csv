@@ -1,0 +1,4 @@
+po_number,vendor_name,currency,authorized_amount,remaining_amount,status
+PO-5001,Acme Supply Co,USD,1000.0,1000.0,OPEN
+PO-5002,Acme Supply Co,USD,1000.0,1000.0,OPEN
+PO-5003,Beacon Logistics Ltd,USD,2500.0,2500.0,OPEN

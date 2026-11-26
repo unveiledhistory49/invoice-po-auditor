@@ -1,0 +1,121 @@
+{
+  "id": "invoice-po-auditor-error-handler",
+  "name": "Invoice_PO_Auditor_Error_Handler",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "nodes": [
+    {
+      "id": "2b0f8c10-4b2e-4f1a-9a02-000000000001",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        200
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "2b0f8c10-4b2e-4f1a-9a02-000000000002",
+      "name": "Format Dead-Letter Record",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        200
+      ],
+      "parameters": {
+        "jsCode": "const payload = $input.first().json;\nconst exec = payload.execution || {};\nconst wf = payload.workflow || {};\nconst err = exec.error || {};\nconst ctx = err.context || {};\nconst hash = String(ctx.file_hash || payload.file_hash || '');\nreturn [\n  {\n    json: {\n      execution_id: String(exec.id ?? ''),\n      workflow_name: String(wf.name ?? ''),\n      failed_node: String(exec.lastNodeExecuted ?? ''),\n      error_message: String(err.message ?? 'Unknown error'),\n      file_hash: hash,\n      execution_url: String(exec.url ?? ''),\n      timestamp: new Date().toISOString()\n    }\n  }\n];"
+      }
+    },
+    {
+      "id": "2b0f8c10-4b2e-4f1a-9a02-000000000003",
+      "name": "Log to Dead-Letter Table",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        520,
+        200
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "insert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "rOI3U1YIHTktiNxW"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null
+        }
+      }
+    },
+    {
+      "id": "2b0f8c10-4b2e-4f1a-9a02-000000000004",
+      "name": "Alert Ops Channel",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        780,
+        200
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "6767879951",
+        "text": "={{ (() => { const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); const d = $('Format Dead-Letter Record').first().json; return '<b>Invoice &amp; PO Auditor Failure</b>\\nWorkflow: ' + esc(d.workflow_name) + '\\nExecution ID: ' + esc(d.execution_id) + '\\nFailed Node: ' + esc(d.failed_node) + '\\nError: ' + esc(d.error_message) + '\\nFile Hash: ' + esc(d.file_hash || 'N/A') + '\\nTimestamp: ' + esc(d.timestamp) + '\\nExecution URL: ' + esc(d.execution_url); })() }}",
+        "additionalFields": {
+          "parse_mode": "HTML",
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "sWRVhdNdfUbHszVN",
+          "name": "Telegram - Demo Approvals"
+        }
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Format Dead-Letter Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Dead-Letter Record": {
+      "main": [
+        [
+          {
+            "node": "Log to Dead-Letter Table",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log to Dead-Letter Table": {
+      "main": [
+        [
+          {
+            "node": "Alert Ops Channel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "tags": []
+}
