@@ -66,6 +66,7 @@ curl -s http://127.0.0.1:5681/health
 Expected: `{"status": "ok", "renderer": "pymupdf", ...}`.
 
 ### 5. Start `telegram-poller` (for Local HITL Replies)
+**Prerequisites:** Node.js 18+ (the poller is a Node.js script) and the `sqlite3` CLI (for inspecting n8n's local database, e.g. verifying Data Table rows). Install them before running the poller.
 `Invoice_PO_Auditor_Approval_Responder` listens on `POST http://127.0.0.1:5678/webhook/telegram-approval-reply`. On a local install without a public webhook URL, run the included outbound poller:
 ```bash
 export TELEGRAM_CRED_ID="your-n8n-telegram-credential-id"
