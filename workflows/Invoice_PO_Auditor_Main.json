@@ -146,7 +146,7 @@
       ],
       "credentials": {
         "openAiApi": {
-          "id": "04LJbqTbPNOXygik",
+          "id": "YOUR_NVIDIA_CREDENTIAL_ID",
           "name": "NVIDIA - Nemotron 3.5 Super VL"
         }
       }
@@ -181,7 +181,7 @@
         "dataTableId": {
           "__rl": true,
           "mode": "id",
-          "value": "z6MmDYhD4UWWhh9G"
+          "value": "YOUR_APPROVED_LEDGER_TABLE_ID"
         },
         "returnAll": true
       }
@@ -203,7 +203,7 @@
         "dataTableId": {
           "__rl": true,
           "mode": "id",
-          "value": "IlhWwgcEgdJfRTvb"
+          "value": "YOUR_PO_MASTER_TABLE_ID"
         },
         "returnAll": true
       }
@@ -314,7 +314,7 @@
         "dataTableId": {
           "__rl": true,
           "mode": "id",
-          "value": "z6MmDYhD4UWWhh9G"
+          "value": "YOUR_APPROVED_LEDGER_TABLE_ID"
         },
         "columns": {
           "mappingMode": "autoMapInputData",
@@ -376,7 +376,7 @@
       },
       "credentials": {
         "gmailOAuth2": {
-          "id": "gmail-demo-oauth2",
+          "id": "YOUR_GMAIL_CREDENTIAL_ID",
           "name": "Gmail - Demo"
         }
       }
@@ -393,7 +393,7 @@
       "parameters": {
         "resource": "message",
         "operation": "sendMessage",
-        "chatId": "6767879951",
+        "chatId": "YOUR_TELEGRAM_CHAT_ID",
         "text": "={{ '<b>Invoice Review Required: ' + $json.invoice_number + ' (' + $json.vendor_name + ')</b>\\n' + 'Vendor: ' + $json.vendor_name + '\\n' + 'Invoice: ' + $json.invoice_number + '\\n' + 'PO: ' + ($json.po_number || 'MISSING') + '\\n' + 'Stated Total: ' + $json.currency + ' ' + (($json.reconciliation.stated_total_cents ?? 0) / 100).toFixed(2) + '\\n' + 'Computed Total: ' + $json.currency + ' ' + (($json.reconciliation.computed_total_cents ?? 0) / 100).toFixed(2) + '\\n' + 'PO Authorized: ' + ($json.reconciliation.po_authorized_cents !== null ? ($json.currency + ' ' + ($json.reconciliation.po_authorized_cents / 100).toFixed(2)) : 'N/A') + '\\n' + 'PO Variance: ' + ($json.reconciliation.po_variance_cents !== null ? ($json.currency + ' ' + ($json.reconciliation.po_variance_cents / 100).toFixed(2)) : 'N/A') + '\\n\\n' + '<b>Flags (' + $json.flag_count + '):</b>\\n' + $json.flags.map((f) => '- [' + f.severity + '] ' + f.code + ': ' + f.detail).join('\\n') + '\\n\\n<b>Reply to decide (tap to copy):</b>\\n<code>APPROVE ' + $json.invoice_number + '</code>\\n<code>REJECT ' + $json.invoice_number + '</code>' }}",
         "additionalFields": {
           "parse_mode": "HTML",
@@ -402,7 +402,7 @@
       },
       "credentials": {
         "telegramApi": {
-          "id": "sWRVhdNdfUbHszVN",
+          "id": "YOUR_TELEGRAM_CREDENTIAL_ID",
           "name": "Telegram - Demo Approvals"
         }
       }
@@ -435,7 +435,7 @@
         "dataTableId": {
           "__rl": true,
           "mode": "id",
-          "value": "rNM7EIk4hfWVzOWI"
+          "value": "YOUR_PENDING_APPROVALS_TABLE_ID"
         },
         "columns": {
           "mappingMode": "autoMapInputData",

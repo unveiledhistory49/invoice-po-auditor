@@ -52,7 +52,7 @@
         "dataTableId": {
           "__rl": true,
           "mode": "id",
-          "value": "rNM7EIk4hfWVzOWI"
+          "value": "YOUR_PENDING_APPROVALS_TABLE_ID"
         },
         "returnAll": true
       }
@@ -131,7 +131,7 @@
         "dataTableId": {
           "__rl": true,
           "mode": "id",
-          "value": "z6MmDYhD4UWWhh9G"
+          "value": "YOUR_APPROVED_LEDGER_TABLE_ID"
         },
         "columns": {
           "mappingMode": "autoMapInputData",
@@ -167,7 +167,7 @@
         "dataTableId": {
           "__rl": true,
           "mode": "id",
-          "value": "z6MmDYhD4UWWhh9G"
+          "value": "YOUR_APPROVED_LEDGER_TABLE_ID"
         },
         "columns": {
           "mappingMode": "autoMapInputData",
@@ -203,7 +203,7 @@
         "dataTableId": {
           "__rl": true,
           "mode": "id",
-          "value": "rNM7EIk4hfWVzOWI"
+          "value": "YOUR_PENDING_APPROVALS_TABLE_ID"
         },
         "matchType": "allConditions",
         "filters": {
@@ -233,7 +233,7 @@
       "parameters": {
         "resource": "message",
         "operation": "sendMessage",
-        "chatId": "6767879951",
+        "chatId": "YOUR_TELEGRAM_CHAT_ID",
         "text": "={{ 'Invoice ' + $json.invoice_number + ' has been ' + ($json.status === 'APPROVED_MANUAL' ? 'approved' : 'rejected') + ' and recorded as ' + $json.status + '.' }}",
         "additionalFields": {
           "parse_mode": "HTML",
@@ -242,7 +242,7 @@
       },
       "credentials": {
         "telegramApi": {
-          "id": "sWRVhdNdfUbHszVN",
+          "id": "YOUR_TELEGRAM_CREDENTIAL_ID",
           "name": "Telegram - Demo Approvals"
         }
       },

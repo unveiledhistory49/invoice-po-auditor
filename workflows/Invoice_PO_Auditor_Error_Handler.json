@@ -45,7 +45,7 @@
         "dataTableId": {
           "__rl": true,
           "mode": "id",
-          "value": "rOI3U1YIHTktiNxW"
+          "value": "YOUR_AUDIT_ERRORS_TABLE_ID"
         },
         "columns": {
           "mappingMode": "autoMapInputData",
@@ -65,7 +65,7 @@
       "parameters": {
         "resource": "message",
         "operation": "sendMessage",
-        "chatId": "6767879951",
+        "chatId": "YOUR_TELEGRAM_CHAT_ID",
         "text": "={{ (() => { const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); const d = $('Format Dead-Letter Record').first().json; return '<b>Invoice &amp; PO Auditor Failure</b>\\nWorkflow: ' + esc(d.workflow_name) + '\\nExecution ID: ' + esc(d.execution_id) + '\\nFailed Node: ' + esc(d.failed_node) + '\\nError: ' + esc(d.error_message) + '\\nFile Hash: ' + esc(d.file_hash || 'N/A') + '\\nTimestamp: ' + esc(d.timestamp) + '\\nExecution URL: ' + esc(d.execution_url); })() }}",
         "additionalFields": {
           "parse_mode": "HTML",
@@ -74,7 +74,7 @@
       },
       "credentials": {
         "telegramApi": {
-          "id": "sWRVhdNdfUbHszVN",
+          "id": "YOUR_TELEGRAM_CREDENTIAL_ID",
           "name": "Telegram - Demo Approvals"
         }
       },
