@@ -6,9 +6,14 @@ PID_FILE="$SCRIPT_DIR/pdf-service.pid"
 LOG_FILE="$SCRIPT_DIR/pdf-service.log"
 PYTHON_BIN="$SCRIPT_DIR/.venv/bin/python"
 
-if [[ -f "$PID_FILE" ]] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
-  echo "pdf-service already running (PID $(cat "$PID_FILE"))"
-  exit 0
+if [[ -f "$PID_FILE" ]]; then
+  OLD_PID="$(cat "$PID_FILE")"
+  if kill -0 "$OLD_PID" 2>/dev/null && tr '\0' ' ' < "/proc/$OLD_PID/cmdline" 2>/dev/null | grep -q "server.py"; then
+    echo "pdf-service already running (PID $OLD_PID)"
+    exit 0
+  fi
+  echo "stale pdf-service pid file (PID $OLD_PID not server.py) — removing"
+  rm -f "$PID_FILE"
 fi
 
 setsid "$PYTHON_BIN" "$SCRIPT_DIR/server.py" > "$LOG_FILE" 2>&1 < /dev/null &

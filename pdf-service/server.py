@@ -11,6 +11,7 @@ DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = int(os.environ.get("PDF_SERVICE_PORT", "5681"))
 DEFAULT_DPI = 150
 MAX_PDF_BYTES = 20 * 1024 * 1024
+MAX_PAGES = 10
 
 
 def render_pdf_bytes(pdf_bytes: bytes, dpi: int, first_page_only: bool) -> dict:
@@ -26,7 +27,7 @@ def render_pdf_bytes(pdf_bytes: bytes, dpi: int, first_page_only: bool) -> dict:
         if total_pages == 0:
             raise ValueError("PDF contains zero pages")
 
-        pages_to_render = 1 if first_page_only else total_pages
+        pages_to_render = 1 if first_page_only else min(total_pages, MAX_PAGES)
         zoom = dpi / 72.0
         matrix = pymupdf.Matrix(zoom, zoom)
         pages_b64 = []
@@ -46,6 +47,7 @@ def render_pdf_bytes(pdf_bytes: bytes, dpi: int, first_page_only: bool) -> dict:
         "pages": pages_b64,
         "page_count": total_pages,
         "rendered_pages": len(pages_b64),
+        "exceeds_page_limit": total_pages > MAX_PAGES,
         "dpi": dpi,
         "page_policy": "first_page_only" if first_page_only else "all_pages",
         "elapsed_ms": elapsed_ms,
@@ -87,7 +89,7 @@ class PdfRenderHandler(BaseHTTPRequestHandler):
 
         try:
             dpi = DEFAULT_DPI
-            first_page_only = True
+            first_page_only = False
 
             if content_type == "application/pdf":
                 pdf_bytes = raw_body

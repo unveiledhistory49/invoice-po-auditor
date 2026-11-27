@@ -5,12 +5,12 @@ Self-hosted, deterministic invoice-to-PO audit pipeline built on **n8n**, **Visi
 ## Contents
 
 - `workflows/`
-  - `Invoice_PO_Auditor_Main.json` (17 nodes) — Form Trigger → SHA-256 hash & size/type guardrail → PDF rasterization → Vision extraction → Deterministic JS audit → Auto-approve (`Approved_Ledger` + `Notify Submitter (Clean)`) or HITL (`Pending_Approvals` + `Send Approval Request`)
+  - `Invoice_PO_Auditor_Main.json` (30 nodes) — Form Trigger (up to 10 files per submission) → `Loop Over Invoices` → SHA-256 hash & size/type guardrail → PDF rasterization → Vision extraction → `Split Pages for Extraction` + `Merge Multi-Page Extraction` → Deterministic JS audit → Auto-approve (`Approved_Ledger` + `Notify Submitter (Clean)`) or HITL (`Pending_Approvals` + `Send Approval Request`); multi-file submissions also produce one batch summary via `Build Batch Summary` → `Send Batch Summary (Telegram)` / `Send Batch Summary (Email)`
   - `Invoice_PO_Auditor_Approval_Responder.json` (13 nodes) — Webhook (`POST /webhook/telegram-approval-reply`) → `APPROVE <INV>` / `REJECT <INV>` → `Approved_Ledger` + `Pending_Approvals` update + `Confirm Decision` (`Notify Submitter (HITL)` is a `NoOp` placeholder for your own email/Slack follow-up)
   - `Invoice_PO_Auditor_Error_Handler.json` (4 nodes) — `Error Trigger` → `Audit_Errors` dead-letter insert + HTML-escaped Telegram ops alert
-- `pdf-service/` — Lightweight Python `ThreadingHTTPServer` + PyMuPDF (`:5681`) that rasterizes page 1 of uploaded PDFs at 150 DPI (~98 ms/page)
+- `pdf-service/` — Lightweight Python `ThreadingHTTPServer` + PyMuPDF (`:5681`) that renders all pages of uploaded PDFs at 150 DPI (~98 ms/page), up to a cap of 10 pages (`MAX_PAGES = 10`; invoices over the cap are flagged `exceeds_page_limit`)
 - `telegram-poller/` — Outbound-only Telegram `getUpdates` long-poller (`poller.js`, `start.sh`) that forwards `APPROVE <INV>` / `REJECT <INV>` text replies (one-tap copy via `<code>` blocks) to n8n's `POST /webhook/telegram-approval-reply` without needing a public URL
-- `seed-data/` — Sample invoices (`INV-2026-101.pdf`, `INV-2026-102.pdf`, `INV-2026-101-duplicate.pdf`, and Naira sample `INV-2026-201.pdf`) plus `PO_Master.csv` / `PO_Master.json`
+- `seed-data/` — Sample invoices (`INV-2026-101.pdf`, `INV-2026-102.pdf`, `INV-2026-101-duplicate.pdf`, 2-page `INV-2026-MULTIPAGE.pdf`, and Naira sample `INV-2026-201.pdf`) plus `PO_Master.csv` / `PO_Master.json`
 
 > **Note:** No API keys, OAuth tokens, personal Telegram chat IDs, or instance-specific Data Table / credential IDs are included in this bundle. All workflow JSONs and `telegram-poller/poller.js` use `YOUR_*` placeholders.
 
@@ -86,3 +86,5 @@ Test the three branches with `seed-data/`:
 - `INV-2026-102.pdf` → Line-item math error (`4 × $250 = $1,150`) + PO overrun → `Pending_Approvals` + Telegram HITL card
 - `INV-2026-101-duplicate.pdf` → Identical SHA-256 hash → `DUPLICATE_INVOICE` flagged for review
 - `INV-2026-201.pdf` → Sample Naira (`₦250,000.00`) Nigerian supplier invoice for NGN testing
+- `INV-2026-MULTIPAGE.pdf` → 2-page invoice; both pages are rendered and the line items merged into a single audit (note: its PO `PO-2026-001` is not in `PO_Master`, so it lands in `Pending_Approvals` with `PO_NOT_FOUND` — useful for testing the review path)
+- Batch test: submit `INV-2026-101.pdf` + `INV-2026-102.pdf` + `INV-2026-101-duplicate.pdf` together → one batch summary, per-file audit rows (101 → `DUPLICATE`, 102 → `PENDING`, duplicate → `DUPLICATE`)
