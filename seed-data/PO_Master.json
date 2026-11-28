@@ -1,29 +1,5 @@
 [
   {
-    "po_number": "PO-5001",
-    "vendor_name": "Acme Supply Co",
-    "currency": "USD",
-    "authorized_amount": 1000.0,
-    "remaining_amount": 1000.0,
-    "status": "OPEN"
-  },
-  {
-    "po_number": "PO-5002",
-    "vendor_name": "Acme Supply Co",
-    "currency": "USD",
-    "authorized_amount": 1000.0,
-    "remaining_amount": 1000.0,
-    "status": "OPEN"
-  },
-  {
-    "po_number": "PO-5003",
-    "vendor_name": "Beacon Logistics Ltd",
-    "currency": "USD",
-    "authorized_amount": 2500.0,
-    "remaining_amount": 2500.0,
-    "status": "OPEN"
-  },
-  {
     "po_number": "PO-5004",
     "vendor_name": "Zuma Industrial Supplies Ltd",
     "currency": "NGN",
@@ -45,6 +21,30 @@
     "currency": "NGN",
     "authorized_amount": 450000.0,
     "remaining_amount": 450000.0,
+    "status": "OPEN"
+  },
+  {
+    "po_number": "PO-5001",
+    "vendor_name": "Acme Supply Co",
+    "currency": "USD",
+    "authorized_amount": 1000.0,
+    "remaining_amount": 1000.0,
+    "status": "OPEN"
+  },
+  {
+    "po_number": "PO-5002",
+    "vendor_name": "Acme Supply Co",
+    "currency": "USD",
+    "authorized_amount": 1000.0,
+    "remaining_amount": 1000.0,
+    "status": "OPEN"
+  },
+  {
+    "po_number": "PO-5003",
+    "vendor_name": "Beacon Logistics Ltd",
+    "currency": "USD",
+    "authorized_amount": 2500.0,
+    "remaining_amount": 2500.0,
     "status": "OPEN"
   }
 ]
