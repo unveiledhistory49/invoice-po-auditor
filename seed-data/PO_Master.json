@@ -46,5 +46,13 @@
     "authorized_amount": 2500.0,
     "remaining_amount": 2500.0,
     "status": "OPEN"
+  },
+  {
+    "po_number": "PO-2026-001",
+    "vendor_name": "Acme Supplies",
+    "currency": "USD",
+    "authorized_amount": 425.0,
+    "remaining_amount": 425.0,
+    "status": "OPEN"
   }
 ]

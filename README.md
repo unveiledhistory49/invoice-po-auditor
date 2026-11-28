@@ -85,8 +85,10 @@ Test the three branches with `seed-data/`:
 - `INV-2026-201.pdf` → Clean Naira match (`PO-5004`, `₦250,000.00`, Zuma Industrial Supplies Ltd) → `APPROVED_AUTO`
 - `INV-2026-202.pdf` → Clean Naira match (`PO-5005`, `₦180,000.00`, Eko Office & Tech Supplies Ltd) → `APPROVED_AUTO`
 - `INV-2026-203.pdf` → Clean Naira match (`PO-5006`, `₦450,000.00`, Lagos Haulage & Logistics Ltd) → `APPROVED_AUTO`
+- `INV-2026-204.pdf` → Naira line-item math error (`₦165,000.00` line items vs `₦180,000.00` total, `PO-5005`, Eko Office & Tech Supplies Ltd) → `Pending_Approvals` + Telegram HITL card
+- `INV-2026-201-duplicate.pdf` → Identical SHA-256 hash to `INV-2026-201.pdf` → `DUPLICATE_INVOICE` flagged for review
 - `INV-2026-101.pdf` → Clean USD match (`PO-5001`, `$1,000.00`) → `APPROVED_AUTO`
 - `INV-2026-102.pdf` → Line-item math error (`4 × $250 = $1,150`) + PO overrun → `Pending_Approvals` + Telegram HITL card
 - `INV-2026-101-duplicate.pdf` → Identical SHA-256 hash → `DUPLICATE_INVOICE` flagged for review
-- `INV-2026-MULTIPAGE.pdf` → 2-page invoice; both pages are rendered and the line items merged into a single audit (note: its PO `PO-2026-001` is not in `PO_Master`, so it lands in `Pending_Approvals` with `PO_NOT_FOUND` — useful for testing the review path)
+- `INV-2026-MULTIPAGE.pdf` → 2-page invoice; both pages are rendered and the line items merged into a single audit (`PO-2026-001`, `$425.00`, Acme Supplies) → `APPROVED_AUTO`
 - Batch test: submit `INV-2026-101.pdf` + `INV-2026-102.pdf` + `INV-2026-101-duplicate.pdf` together → one batch summary, per-file audit rows (101 → `DUPLICATE`, 102 → `PENDING`, duplicate → `DUPLICATE`)
