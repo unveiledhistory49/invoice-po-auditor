@@ -30,5 +30,21 @@
     "authorized_amount": 250000.0,
     "remaining_amount": 250000.0,
     "status": "OPEN"
+  },
+  {
+    "po_number": "PO-5005",
+    "vendor_name": "Eko Office & Tech Supplies Ltd",
+    "currency": "NGN",
+    "authorized_amount": 180000.0,
+    "remaining_amount": 180000.0,
+    "status": "OPEN"
+  },
+  {
+    "po_number": "PO-5006",
+    "vendor_name": "Lagos Haulage & Logistics Ltd",
+    "currency": "NGN",
+    "authorized_amount": 450000.0,
+    "remaining_amount": 450000.0,
+    "status": "OPEN"
   }
 ]
